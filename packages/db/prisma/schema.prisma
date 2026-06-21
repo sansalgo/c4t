@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum MemberRole {
+  PARENT
+  CHILD
+}
+
+enum TaskStatus {
+  ASSIGNED
+  PENDING_REVIEW
+  COMPLETED
+}
+
+enum LedgerEntryType {
+  EARN
+  SPEND
+  REVERSAL
+  ADJUST
+}
+
+enum RedemptionStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+// ─── Module 1: Family & Membership ───────────────────────────────────────────
+
+model User {
+  id          String   @id @default(cuid())
+  email       String?  @unique
+  displayName String
+  createdAt   DateTime @default(now())
+
+  memberships FamilyMembership[]
+}
+
+model Family {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  memberships FamilyMembership[]
+}
+
+model FamilyMembership {
+  id        String     @id @default(cuid())
+  userId    String
+  familyId  String
+  role      MemberRole
+  createdAt DateTime   @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, familyId])
+}

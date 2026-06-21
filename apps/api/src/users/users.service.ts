@@ -1,23 +1,28 @@
-import { Injectable } from '@nestjs/common';
-
-export interface User {
-  id: number;
-  name: string;
-  email: string;
-  role: string;
-}
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateUserDto } from './dto/create-user.dto';
 
 @Injectable()
 export class UsersService {
-  private readonly users: User[] = [
-    { id: 1, name: 'Alice Johnson', email: 'alice@example.com', role: 'Admin' },
-    { id: 2, name: 'Bob Smith', email: 'bob@example.com', role: 'Editor' },
-    { id: 3, name: 'Carol Williams', email: 'carol@example.com', role: 'Viewer' },
-    { id: 4, name: 'David Brown', email: 'david@example.com', role: 'Editor' },
-    { id: 5, name: 'Eve Davis', email: 'eve@example.com', role: 'Viewer' },
-  ];
+  constructor(private readonly prisma: PrismaService) {}
 
-  findAll(): User[] {
-    return this.users;
+  async create(dto: CreateUserDto) {
+    try {
+      return await this.prisma.user.create({ data: dto });
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        throw new ConflictException('A user with this email already exists');
+      }
+      throw err;
+    }
+  }
+
+  async findOne(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: { memberships: { include: { family: true } } },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    return user;
   }
 }
