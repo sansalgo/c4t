@@ -1,25 +1,29 @@
-import Link from "next/link"
-import { Button } from "@workspace/ui/components/button"
+"use client"
 
-export default function Page() {
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { MemberRole } from "@workspace/types"
+import { useAuth } from "@/components/auth-provider"
+import { Skeleton } from "@workspace/ui/components/skeleton"
+
+export default function RootPage() {
+  const { user, isLoading } = useAuth()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (isLoading) return
+    if (!user) {
+      router.replace("/login")
+    } else if (user.role === MemberRole.PARENT) {
+      router.replace("/parent")
+    } else {
+      router.replace("/child")
+    }
+  }, [user, isLoading, router])
+
   return (
-    <div className="flex min-h-svh p-6">
-      <div className="flex max-w-md min-w-0 flex-col gap-4 text-sm leading-loose">
-        <div>
-          <h1 className="font-medium">Project ready!</h1>
-          <p>You may now add components and start building.</p>
-          <p>We&apos;ve already added the button component for you.</p>
-          <Button className="mt-2">Button</Button>
-        </div>
-        <div>
-          <Button asChild variant="outline" className="mt-1">
-            <Link href="/users">View Users from API →</Link>
-          </Button>
-        </div>
-        <div className="text-muted-foreground font-mono text-xs">
-          (Press <kbd>d</kbd> to toggle dark mode)
-        </div>
-      </div>
+    <div className="flex min-h-svh items-center justify-center">
+      <Skeleton className="size-8 rounded-full" />
     </div>
   )
 }

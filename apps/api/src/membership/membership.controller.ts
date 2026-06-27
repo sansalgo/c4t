@@ -1,20 +1,30 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.interface';
+import { AuthorizationService } from '../common/authorization.service';
 import { AddMemberDto } from './dto/add-member.dto';
 import { MembershipService } from './membership.service';
 
 @Controller('families/:familyId/members')
 export class MembershipController {
-  constructor(private readonly membershipService: MembershipService) {}
+  constructor(
+    private readonly membershipService: MembershipService,
+    private readonly authorizationService: AuthorizationService,
+  ) {}
 
-  // TODO M2: guard with assertFamilyParent — only a PARENT can add members
   @Post()
-  addMember(@Param('familyId') familyId: string, @Body() dto: AddMemberDto) {
+  async addMember(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('familyId') familyId: string,
+    @Body() dto: AddMemberDto,
+  ) {
+    await this.authorizationService.assertFamilyParent(user.userId, familyId);
     return this.membershipService.addMember(familyId, dto);
   }
 
-  // TODO M2: guard with assertFamilyMember — only family members can list members
   @Get()
-  findAll(@Param('familyId') familyId: string) {
+  async findAll(@CurrentUser() user: AuthenticatedUser, @Param('familyId') familyId: string) {
+    await this.authorizationService.assertFamilyMember(user.userId, familyId);
     return this.membershipService.findAll(familyId);
   }
 }

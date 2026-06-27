@@ -37,12 +37,37 @@ enum RedemptionStatus {
 // ─── Module 1: Family & Membership ───────────────────────────────────────────
 
 model User {
-  id          String   @id @default(cuid())
-  email       String?  @unique
+  id          String    @id @default(cuid())
+  email       String?   @unique
   displayName String
-  createdAt   DateTime @default(now())
+  claimedAt   DateTime?
+  createdAt   DateTime  @default(now())
 
-  memberships FamilyMembership[]
+  memberships         FamilyMembership[]
+  credential          Credential?
+  federatedIdentities FederatedIdentity[]
+  inviteTokens        InviteToken[]
+
+  // M3
+  ledgerEntriesAsChild   LedgerEntry[]  @relation("LedgerEntryChild")
+  ledgerEntriesCreated   LedgerEntry[]  @relation("LedgerEntryCreatedBy")
+  rewardOptionsCreated   RewardOption[]
+
+  // M4
+  tasksAssigned Task[] @relation("TaskAssignedTo")
+  tasksCreated  Task[] @relation("TaskCreatedBy")
+
+  // M6
+  recurrenceRulesAssigned RecurrenceRule[] @relation("RecurrenceRuleAssignedTo")
+  recurrenceRulesCreated  RecurrenceRule[] @relation("RecurrenceRuleCreatedBy")
+  reminders               Reminder[]
+
+  // M7
+  attachmentsUploaded Attachment[]
+
+  // M8
+  redemptionRequests  RedemptionRequest[] @relation("RedemptionRequestChild")
+  redemptionDecisions RedemptionRequest[] @relation("RedemptionRequestDecidedBy")
 }
 
 model Family {
@@ -50,7 +75,21 @@ model Family {
   name      String
   createdAt DateTime @default(now())
 
-  memberships FamilyMembership[]
+  memberships  FamilyMembership[]
+  inviteTokens InviteToken[]
+
+  // M3
+  ledgerEntries LedgerEntry[]
+  rewardOptions RewardOption[]
+
+  // M4
+  tasks Task[]
+
+  // M6
+  recurrenceRules RecurrenceRule[]
+
+  // M8
+  redemptionRequests RedemptionRequest[]
 }
 
 model FamilyMembership {
@@ -64,4 +103,172 @@ model FamilyMembership {
   family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
   @@unique([userId, familyId])
+}
+
+// ─── Module 2: Authentication & Account Claiming ─────────────────────────────
+
+model Credential {
+  userId       String @id
+  passwordHash String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model FederatedIdentity {
+  id          String   @id @default(cuid())
+  userId      String
+  provider    String
+  providerSub String
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerSub])
+}
+
+model InviteToken {
+  id         String    @id @default(cuid())
+  userId     String
+  familyId   String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+}
+
+// ─── Module 3: Ledger & Reward Options ───────────────────────────────────────
+
+model LedgerEntry {
+  id          String          @id @default(cuid())
+  familyId    String
+  childUserId String
+  type        LedgerEntryType
+  amount      Int
+  sourceType  String?
+  sourceId    String?
+  note        String?
+  createdById String
+  createdAt   DateTime        @default(now())
+
+  family    Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  child     User   @relation("LedgerEntryChild", fields: [childUserId], references: [id], onDelete: Cascade)
+  createdBy User   @relation("LedgerEntryCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+}
+
+model RewardOption {
+  id          String   @id @default(cuid())
+  familyId    String
+  title       String
+  description String?
+  costCarrots Int
+  isActive    Boolean  @default(true)
+  createdById String
+  createdAt   DateTime @default(now())
+
+  family    Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  createdBy User   @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  // M8
+  redemptionRequests RedemptionRequest[]
+}
+
+// ─── Module 4: Tasks ─────────────────────────────────────────────────────────
+
+model Task {
+  id                   String     @id @default(cuid())
+  familyId             String
+  assignedToUserId     String
+  createdById          String
+  title                String
+  description          String?
+  dueAt                DateTime?
+  carrotValue          Int
+  requiresReview       Boolean    @default(false)
+  requiresFileOnReview Boolean    @default(false)
+  status               TaskStatus @default(ASSIGNED)
+  rejectionNote        String?
+  // recurrenceRuleId will become a proper FK in M6; stored as plain String for now
+  recurrenceRuleId     String?
+  createdAt            DateTime   @default(now())
+
+  family          Family          @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  assignedTo      User            @relation("TaskAssignedTo", fields: [assignedToUserId], references: [id], onDelete: Cascade)
+  createdBy       User            @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  recurrenceRule  RecurrenceRule? @relation(fields: [recurrenceRuleId], references: [id], onDelete: SetNull)
+  reminders       Reminder[]
+  attachments     Attachment[]
+}
+
+// ─── Module 6: Recurrence & Reminders ────────────────────────────────────────
+
+model RecurrenceRule {
+  id                   String    @id @default(cuid())
+  familyId             String
+  assignedToUserId     String
+  createdById          String
+  rule                 String
+  startAt              DateTime
+  endAt                DateTime?
+  // Task template — copied onto every materialized instance
+  title                String
+  description          String?
+  carrotValue          Int
+  requiresReview       Boolean   @default(false)
+  requiresFileOnReview Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+
+  family     Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  assignedTo User   @relation("RecurrenceRuleAssignedTo", fields: [assignedToUserId], references: [id], onDelete: Cascade)
+  createdBy  User   @relation("RecurrenceRuleCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  tasks      Task[]
+}
+
+model Reminder {
+  id        String    @id @default(cuid())
+  taskId    String
+  userId    String
+  remindAt  DateTime
+  channel   String    @default("IN_APP")
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Module 7: File Attachments ───────────────────────────────────────────────
+
+model Attachment {
+  id               String   @id @default(cuid())
+  taskId           String
+  uploadedByUserId String
+  s3Key            String   @unique
+  contentType      String
+  sizeBytes        Int
+  createdAt        DateTime @default(now())
+
+  task       Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploadedBy User @relation(fields: [uploadedByUserId], references: [id], onDelete: Cascade)
+}
+
+// ─── Module 8: Redemptions ────────────────────────────────────────────────────
+
+model RedemptionRequest {
+  id             String           @id @default(cuid())
+  familyId       String
+  childUserId    String
+  rewardOptionId String
+  costAtRequest  Int
+  status         RedemptionStatus @default(REQUESTED)
+  decidedById    String?
+  decidedAt      DateTime?
+  createdAt      DateTime         @default(now())
+
+  family       Family       @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  child        User         @relation("RedemptionRequestChild", fields: [childUserId], references: [id], onDelete: Cascade)
+  rewardOption RewardOption @relation(fields: [rewardOptionId], references: [id], onDelete: Restrict)
+  decidedBy    User?        @relation("RedemptionRequestDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
 }

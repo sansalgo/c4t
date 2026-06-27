@@ -1,20 +1,25 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user.interface';
+import { AuthorizationService } from '../common/authorization.service';
 import { CreateFamilyDto } from './dto/create-family.dto';
 import { FamilyService } from './family.service';
 
 @Controller('families')
 export class FamilyController {
-  constructor(private readonly familyService: FamilyService) {}
+  constructor(
+    private readonly familyService: FamilyService,
+    private readonly authorizationService: AuthorizationService,
+  ) {}
 
-  // TODO M2: guard with session auth — only authenticated users can create a family
   @Post()
-  create(@Body() dto: CreateFamilyDto) {
-    return this.familyService.create(dto);
+  create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateFamilyDto) {
+    return this.familyService.create(user.userId, dto);
   }
 
-  // TODO M2: guard — only family members can view family details
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  async findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    await this.authorizationService.assertFamilyMember(user.userId, id);
     return this.familyService.findOne(id);
   }
 }
