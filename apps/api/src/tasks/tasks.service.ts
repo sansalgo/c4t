@@ -32,7 +32,9 @@ export class TasksService {
   // ── M4: CRUD (assignment) ─────────────────────────────────────────────────
 
   async create(familyId: string, createdById: string, dto: CreateTaskDto) {
-    await this.assertChildInFamily(familyId, dto.assignedToUserId);
+    if (dto.assignedToUserId) {
+      await this.assertChildInFamily(familyId, dto.assignedToUserId);
+    }
     return this.prisma.task.create({
       data: {
         familyId,
@@ -40,6 +42,7 @@ export class TasksService {
         title: dto.title,
         description: dto.description,
         assignedToUserId: dto.assignedToUserId,
+        status: dto.assignedToUserId ? TaskStatus.ASSIGNED : TaskStatus.OPEN,
         dueAt: dto.dueAt ? new Date(dto.dueAt) : undefined,
         carrotValue: dto.carrotValue,
         requiresReview: dto.requiresReview ?? false,
@@ -52,7 +55,7 @@ export class TasksService {
   async findAll(familyId: string, viewerRole: MemberRole, viewerUserId: string) {
     const where =
       viewerRole === MemberRole.CHILD
-        ? { familyId, assignedToUserId: viewerUserId }
+        ? { familyId, OR: [{ assignedToUserId: viewerUserId }, { status: TaskStatus.OPEN }] }
         : { familyId };
 
     return this.prisma.task.findMany({
@@ -69,7 +72,11 @@ export class TasksService {
     });
     if (!task) throw new NotFoundException('Task not found');
 
-    if (viewerRole === MemberRole.CHILD && task.assignedToUserId !== viewerUserId) {
+    if (
+      viewerRole === MemberRole.CHILD &&
+      task.assignedToUserId !== viewerUserId &&
+      task.status !== TaskStatus.OPEN
+    ) {
       throw new ForbiddenException('You can only view tasks assigned to you');
     }
 
@@ -90,6 +97,9 @@ export class TasksService {
         title: dto.title,
         description: dto.description,
         assignedToUserId: dto.assignedToUserId,
+        // A parent manually assigning an open task claims it on the child's behalf.
+        status:
+          dto.assignedToUserId && task.status === TaskStatus.OPEN ? TaskStatus.ASSIGNED : undefined,
         dueAt: dto.dueAt !== undefined ? new Date(dto.dueAt) : undefined,
         carrotValue: dto.carrotValue,
         requiresReview: dto.requiresReview,
@@ -97,6 +107,24 @@ export class TasksService {
       },
       include: TASK_INCLUDE,
     });
+  }
+
+  // Child claims an open task, assigning it to themselves.
+  // OPEN → ASSIGNED. The conditional updateMany is the race fence: if two children
+  // claim the same task at once, only the first write matches `status: OPEN`.
+  async claim(familyId: string, id: string, childUserId: string) {
+    const { count } = await this.prisma.task.updateMany({
+      where: { id, familyId, status: TaskStatus.OPEN },
+      data: { assignedToUserId: childUserId, status: TaskStatus.ASSIGNED },
+    });
+
+    if (count === 0) {
+      const task = await this.prisma.task.findFirst({ where: { id, familyId } });
+      if (!task) throw new NotFoundException('Task not found');
+      throw new ConflictException('Task is no longer open to claim');
+    }
+
+    return this.prisma.task.findFirst({ where: { id, familyId }, include: TASK_INCLUDE });
   }
 
   async remove(familyId: string, id: string) {
@@ -177,6 +205,10 @@ export class TasksService {
       if (!task) throw new NotFoundException('Task not found');
       if (task.status !== TaskStatus.PENDING_REVIEW) {
         throw new ConflictException(`Task is ${task.status} — only PENDING_REVIEW tasks can be approved`);
+      }
+      // Invariant: a task only reaches PENDING_REVIEW via submit(), which requires an assignee.
+      if (!task.assignedToUserId) {
+        throw new ConflictException('Task has no assignee');
       }
 
       const updated = await tx.task.update({

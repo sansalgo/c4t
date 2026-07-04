@@ -96,6 +96,20 @@ export class TasksController {
     return this.tasksService.submit(familyId, id, user.userId);
   }
 
+  // Child claims an open (unassigned) task, assigning it to themselves.
+  // OPEN → ASSIGNED
+  @Post(':id/claim')
+  claim(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('familyId') familyId: string,
+    @Param('id') id: string,
+  ) {
+    if (user.familyId !== familyId || user.role !== MemberRole.CHILD) {
+      throw new ForbiddenException('Only a child member can claim a task');
+    }
+    return this.tasksService.claim(familyId, id, user.userId);
+  }
+
   // Parent approves a task under review.
   // PENDING_REVIEW → COMPLETED + EARN (atomic, double-credit-safe)
   @Post(':id/approve')

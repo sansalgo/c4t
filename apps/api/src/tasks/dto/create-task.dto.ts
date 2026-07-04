@@ -9,8 +9,10 @@ export class CreateTaskDto {
   @IsOptional()
   description?: string;
 
+  // Omitted = open task, claimable by any child in the family.
   @IsString()
-  assignedToUserId!: string;
+  @IsOptional()
+  assignedToUserId?: string;
 
   @IsDateString()
   @IsOptional()

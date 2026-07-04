@@ -23,18 +23,22 @@ import { Alert, AlertDescription } from "@workspace/ui/components/alert"
 interface Member { id: string; userId: string; role: string; user: { displayName: string } }
 interface Task {
   id: string; title: string; description?: string; status: string
-  assignedToUserId: string; dueAt?: string; carrotValue: number
+  assignedToUserId: string | null; dueAt?: string; carrotValue: number
   requiresReview: boolean; requiresFileOnReview: boolean
   assignedToUser?: { displayName: string }
 }
 
+const OPEN_VALUE = "__open__"
+
 const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
+  [TaskStatus.OPEN]: "outline",
   [TaskStatus.ASSIGNED]: "secondary",
   [TaskStatus.PENDING_REVIEW]: "default",
   [TaskStatus.COMPLETED]: "outline",
 }
 
 const statusLabel: Record<string, string> = {
+  [TaskStatus.OPEN]: "Open to anyone",
   [TaskStatus.ASSIGNED]: "Assigned",
   [TaskStatus.PENDING_REVIEW]: "Pending Review",
   [TaskStatus.COMPLETED]: "Completed",
@@ -46,7 +50,7 @@ interface TaskForm {
 }
 
 const emptyForm: TaskForm = {
-  title: "", description: "", assignedToUserId: "", dueAt: "", carrotValue: "1", requiresReview: false, requiresFileOnReview: false,
+  title: "", description: "", assignedToUserId: OPEN_VALUE, dueAt: "", carrotValue: "1", requiresReview: false, requiresFileOnReview: false,
 }
 
 export default function ParentTasksPage() {
@@ -89,7 +93,7 @@ export default function ParentTasksPage() {
   function openEdit(task: Task) {
     setEditingTask(task)
     setForm({
-      title: task.title, description: task.description ?? "", assignedToUserId: task.assignedToUserId,
+      title: task.title, description: task.description ?? "", assignedToUserId: task.assignedToUserId ?? OPEN_VALUE,
       dueAt: task.dueAt ? task.dueAt.substring(0, 10) : "", carrotValue: String(task.carrotValue),
       requiresReview: task.requiresReview, requiresFileOnReview: task.requiresFileOnReview,
     })
@@ -102,7 +106,7 @@ export default function ParentTasksPage() {
     const body = {
       title: form.title.trim(),
       description: form.description.trim() || undefined,
-      assignedToUserId: form.assignedToUserId,
+      assignedToUserId: form.assignedToUserId === OPEN_VALUE ? undefined : form.assignedToUserId,
       dueAt: form.dueAt ? new Date(form.dueAt).toISOString() : undefined,
       carrotValue: parseInt(form.carrotValue, 10),
       requiresReview: form.requiresReview,
@@ -202,7 +206,7 @@ export default function ParentTasksPage() {
           {tasks.map((task) => (
             <TableRow key={task.id}>
               <TableCell className="font-medium">{task.title}</TableCell>
-              <TableCell>{task.assignedToUser?.displayName ?? "—"}</TableCell>
+              <TableCell>{task.assignedToUser?.displayName ?? (task.status === TaskStatus.OPEN ? "Open to anyone" : "—")}</TableCell>
               <TableCell>
                 <Badge variant={statusVariant[task.status] ?? "outline"}>{statusLabel[task.status] ?? task.status}</Badge>
               </TableCell>
@@ -247,7 +251,7 @@ export default function ParentTasksPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingTask ? "Edit task" : "New task"}</DialogTitle>
-            <DialogDescription>Assign a task to a child with a carrot reward.</DialogDescription>
+            <DialogDescription>Assign a task to a child, or leave it open for any child to claim.</DialogDescription>
           </DialogHeader>
           <form id="task-form" onSubmit={onSubmit}>
             <FieldGroup>
@@ -260,12 +264,13 @@ export default function ParentTasksPage() {
                 <Textarea id="desc" value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} rows={2} />
               </Field>
               <Field>
-                <FieldLabel htmlFor="child">Assigned to *</FieldLabel>
+                <FieldLabel htmlFor="child">Assigned to</FieldLabel>
                 <Select value={form.assignedToUserId} onValueChange={(v) => setForm((p) => ({ ...p, assignedToUserId: v }))}>
                   <SelectTrigger id="child">
                     <SelectValue placeholder="Select a child" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value={OPEN_VALUE}>Open to anyone (first to claim)</SelectItem>
                     {children.map((c) => (
                       <SelectItem key={c.userId} value={c.userId}>{c.user.displayName}</SelectItem>
                     ))}

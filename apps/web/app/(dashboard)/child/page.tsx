@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { format } from "date-fns"
 import { toast } from "sonner"
-import { Carrot, Upload, CheckCircle, Clock, Circle } from "@phosphor-icons/react"
+import { Carrot, Upload, CheckCircle, Clock, Circle, Megaphone } from "@phosphor-icons/react"
 import { TaskStatus } from "@workspace/types"
 import { api, ApiError } from "@/lib/api"
 import { useAuth } from "@/components/auth-provider"
@@ -27,6 +27,7 @@ const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp", "a
 function statusIcon(status: string) {
   if (status === TaskStatus.COMPLETED) return <CheckCircle className="size-4 text-green-500" />
   if (status === TaskStatus.PENDING_REVIEW) return <Clock className="size-4 text-yellow-500" />
+  if (status === TaskStatus.OPEN) return <Megaphone className="size-4 text-blue-500" />
   return <Circle className="size-4 text-muted-foreground" />
 }
 
@@ -39,6 +40,7 @@ export default function ChildTasksPage() {
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState<Record<string, boolean>>({})
   const [submitting, setSubmitting] = useState<Record<string, boolean>>({})
+  const [claiming, setClaiming] = useState<Record<string, boolean>>({})
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   function load() {
@@ -50,6 +52,21 @@ export default function ChildTasksPage() {
   }
 
   useEffect(() => { load() }, [familyId])
+
+  async function claimTask(task: Task) {
+    if (!familyId) return
+    setClaiming((p) => ({ ...p, [task.id]: true }))
+    try {
+      await api.post(`/families/${familyId}/tasks/${task.id}/claim`, {})
+      toast.success("Task claimed — it's yours now!")
+      load()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Someone else may have claimed it first")
+      load()
+    } finally {
+      setClaiming((p) => ({ ...p, [task.id]: false }))
+    }
+  }
 
   async function markDone(task: Task) {
     if (!familyId) return
@@ -102,6 +119,7 @@ export default function ChildTasksPage() {
   if (loading) return <div className="flex flex-col gap-4"><Skeleton className="h-8 w-48" />{[0,1,2].map((i) => <Skeleton key={i} className="h-32 rounded-xl" />)}</div>
   if (error) return <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>
 
+  const open = tasks.filter((t) => t.status === TaskStatus.OPEN)
   const assigned = tasks.filter((t) => t.status === TaskStatus.ASSIGNED)
   const pendingReview = tasks.filter((t) => t.status === TaskStatus.PENDING_REVIEW)
   const completed = tasks.filter((t) => t.status === TaskStatus.COMPLETED)
@@ -109,7 +127,8 @@ export default function ChildTasksPage() {
   function TaskCard({ task }: { task: Task }) {
     const isUploading = uploading[task.id]
     const isSubmitting = submitting[task.id]
-    const busy = isUploading || isSubmitting
+    const isClaiming = claiming[task.id]
+    const busy = isUploading || isSubmitting || isClaiming
 
     return (
       <Card>
@@ -140,6 +159,16 @@ export default function ChildTasksPage() {
               <AlertDescription className="text-sm">{task.rejectionNote}</AlertDescription>
             </Alert>
           </CardContent>
+        )}
+        {task.status === TaskStatus.OPEN && (
+          <>
+            <Separator />
+            <CardFooter className="pt-4">
+              <Button className="w-full" onClick={() => claimTask(task)} disabled={busy}>
+                {isClaiming ? "Claiming…" : "Claim task"}
+              </Button>
+            </CardFooter>
+          </>
         )}
         {task.status === TaskStatus.ASSIGNED && (
           <>
@@ -185,6 +214,10 @@ export default function ChildTasksPage() {
 
       <Tabs defaultValue="assigned">
         <TabsList>
+          <TabsTrigger value="open">
+            Up for grabs
+            {open.length > 0 && <Badge className="ml-2 size-5 rounded-full p-0 text-xs">{open.length}</Badge>}
+          </TabsTrigger>
           <TabsTrigger value="assigned">
             To Do
             {assigned.length > 0 && <Badge className="ml-2 size-5 rounded-full p-0 text-xs">{assigned.length}</Badge>}
@@ -195,6 +228,22 @@ export default function ChildTasksPage() {
           </TabsTrigger>
           <TabsTrigger value="done">Done</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="open" className="mt-4">
+          {open.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center gap-2 py-10 text-center">
+                <Megaphone className="text-muted-foreground size-8" />
+                <p className="font-medium">Nothing up for grabs</p>
+                <p className="text-muted-foreground text-sm">Open tasks anyone can claim will show up here.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {open.map((t) => <TaskCard key={t.id} task={t} />)}
+            </div>
+          )}
+        </TabsContent>
 
         <TabsContent value="assigned" className="mt-4">
           {assigned.length === 0 ? (

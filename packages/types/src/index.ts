@@ -5,6 +5,7 @@ export const MemberRole = {
 export type MemberRole = (typeof MemberRole)[keyof typeof MemberRole];
 
 export const TaskStatus = {
+  OPEN: 'OPEN',
   ASSIGNED: 'ASSIGNED',
   PENDING_REVIEW: 'PENDING_REVIEW',
   COMPLETED: 'COMPLETED',

@@ -15,6 +15,7 @@ enum MemberRole {
 }
 
 enum TaskStatus {
+  OPEN
   ASSIGNED
   PENDING_REVIEW
   COMPLETED
@@ -180,7 +181,8 @@ model RewardOption {
 model Task {
   id                   String     @id @default(cuid())
   familyId             String
-  assignedToUserId     String
+  // Null = open task, claimable by any child in the family.
+  assignedToUserId     String?
   createdById          String
   title                String
   description          String?
@@ -195,7 +197,7 @@ model Task {
   createdAt            DateTime   @default(now())
 
   family          Family          @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  assignedTo      User            @relation("TaskAssignedTo", fields: [assignedToUserId], references: [id], onDelete: Cascade)
+  assignedTo      User?           @relation("TaskAssignedTo", fields: [assignedToUserId], references: [id], onDelete: Cascade)
   createdBy       User            @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
   recurrenceRule  RecurrenceRule? @relation(fields: [recurrenceRuleId], references: [id], onDelete: SetNull)
   reminders       Reminder[]

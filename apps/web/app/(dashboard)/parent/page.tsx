@@ -94,7 +94,7 @@ export default function ParentOverviewPage() {
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard icon={Users} label="Children" value={children.length} href="/parent/tasks" />
         <StatCard icon={Hourglass} label="Pending Review" value={pendingReview.length} href="/parent/review" />
-        <StatCard icon={Gift} label="Active Tasks" value={tasks.filter((t) => t.status === TaskStatus.ASSIGNED).length} href="/parent/tasks" />
+        <StatCard icon={Gift} label="Active Tasks" value={tasks.filter((t) => t.status === TaskStatus.ASSIGNED || t.status === TaskStatus.OPEN).length} href="/parent/tasks" />
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
