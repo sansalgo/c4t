@@ -5,7 +5,7 @@ import { format } from "date-fns"
 import { toast } from "sonner"
 import { Carrot, PlusCircle, PencilSimple, Trash } from "@phosphor-icons/react"
 import { TaskStatus } from "@workspace/types"
-import { api, ApiError } from "@/lib/api"
+import { api } from "@/lib/api"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@workspace/ui/components/button"
 import { Badge } from "@workspace/ui/components/badge"
@@ -13,11 +13,28 @@ import { Input } from "@workspace/ui/components/input"
 import { Textarea } from "@workspace/ui/components/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@workspace/ui/components/select"
 import { Checkbox } from "@workspace/ui/components/checkbox"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@workspace/ui/components/dialog"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@workspace/ui/components/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@workspace/ui/components/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@workspace/ui/components/alert-dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@workspace/ui/components/table"
 import { Skeleton } from "@workspace/ui/components/skeleton"
-import { Field, FieldError, FieldGroup, FieldLabel } from "@workspace/ui/components/field"
+import { Field, FieldGroup, FieldLabel } from "@workspace/ui/components/field"
 import { Alert, AlertDescription } from "@workspace/ui/components/alert"
 
 interface Member { id: string; userId: string; role: string; user: { displayName: string } }
@@ -53,7 +70,7 @@ const emptyForm: TaskForm = {
   title: "", description: "", assignedToUserId: OPEN_VALUE, dueAt: "", carrotValue: "1", requiresReview: false, requiresFileOnReview: false,
 }
 
-export default function ParentTasksPage() {
+export function TasksWindowContent() {
   const { user } = useAuth()
   const familyId = user?.familyId
   const [tasks, setTasks] = useState<Task[]>([])
@@ -64,9 +81,6 @@ export default function ParentTasksPage() {
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [form, setForm] = useState<TaskForm>(emptyForm)
   const [submitting, setSubmitting] = useState(false)
-  const [createChildOpen, setCreateChildOpen] = useState(false)
-  const [childForm, setChildForm] = useState({ displayName: "", email: "" })
-  const [childSubmitting, setChildSubmitting] = useState(false)
 
   function load() {
     if (!familyId) return
@@ -141,48 +155,21 @@ export default function ParentTasksPage() {
     }
   }
 
-  async function onCreateChild(e: React.FormEvent) {
-    e.preventDefault()
-    if (!familyId) return
-    setChildSubmitting(true)
-    try {
-      const res = await api.post<{ token: string }>(`/auth/families/${familyId}/children`, {
-        displayName: childForm.displayName.trim(),
-        email: childForm.email.trim() || undefined,
-      })
-      toast.success(`Child created! Invite token: ${res.token}`, { duration: 10000 })
-      setCreateChildOpen(false)
-      setChildForm({ displayName: "", email: "" })
-      load()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed")
-    } finally {
-      setChildSubmitting(false)
-    }
-  }
-
-  if (loading) return <div className="flex flex-col gap-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 rounded-xl" /></div>
+  if (loading) return <div className="flex flex-col gap-4"><Skeleton className="h-64 rounded-xl" /></div>
   if (error) return <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Tasks</h1>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setCreateChildOpen(true)}>
-            <PlusCircle data-icon="inline-start" />
-            Add child
-          </Button>
-          <Button onClick={openCreate} disabled={children.length === 0}>
-            <PlusCircle data-icon="inline-start" />
-            New task
-          </Button>
-        </div>
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-end">
+        <Button onClick={openCreate} disabled={children.length === 0}>
+          <PlusCircle data-icon="inline-start" />
+          New task
+        </Button>
       </div>
 
       {children.length === 0 && (
         <Alert>
-          <AlertDescription>Add a child account first before creating tasks.</AlertDescription>
+          <AlertDescription>Add a child account first (from the Children window) before creating tasks.</AlertDescription>
         </Alert>
       )}
 
@@ -246,7 +233,6 @@ export default function ParentTasksPage() {
         </TableBody>
       </Table>
 
-      {/* Create/Edit task dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -310,34 +296,6 @@ export default function ParentTasksPage() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button type="submit" form="task-form" disabled={submitting}>
               {submitting ? "Saving…" : (editingTask ? "Save changes" : "Create task")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Create child dialog */}
-      <Dialog open={createChildOpen} onOpenChange={setCreateChildOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add a child</DialogTitle>
-            <DialogDescription>Creates a child account and generates an invite link for them to claim.</DialogDescription>
-          </DialogHeader>
-          <form id="child-form" onSubmit={onCreateChild}>
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="childName">Child&apos;s name *</FieldLabel>
-                <Input id="childName" value={childForm.displayName} onChange={(e) => setChildForm((p) => ({ ...p, displayName: e.target.value }))} required />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="childEmail">Email (optional)</FieldLabel>
-                <Input id="childEmail" type="email" value={childForm.email} onChange={(e) => setChildForm((p) => ({ ...p, email: e.target.value }))} />
-              </Field>
-            </FieldGroup>
-          </form>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateChildOpen(false)}>Cancel</Button>
-            <Button type="submit" form="child-form" disabled={childSubmitting}>
-              {childSubmitting ? "Creating…" : "Create child"}
             </Button>
           </DialogFooter>
         </DialogContent>

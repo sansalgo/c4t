@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
+  CaretUpDown,
   CheckSquare,
   ClipboardText,
   Gift,
@@ -14,9 +15,11 @@ import {
   Carrot,
   Wallet,
   Eye,
+  Users,
 } from "@phosphor-icons/react"
 import { MemberRole } from "@workspace/types"
 import { useAuth } from "@/components/auth-provider"
+import { WindowManagerProvider, useWindowManager, type WindowId } from "@/components/window-manager-provider"
 import {
   Sidebar,
   SidebarContent,
@@ -30,19 +33,23 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-  SidebarRail,
-  SidebarTrigger,
 } from "@workspace/ui/components/sidebar"
-import { Avatar, AvatarFallback } from "@workspace/ui/components/avatar"
 import { Skeleton } from "@workspace/ui/components/skeleton"
-import { cn } from "@workspace/ui/lib/utils"
+import { Avatar, AvatarFallback } from "@workspace/ui/components/avatar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@workspace/ui/components/dropdown-menu"
 
-const parentNav = [
-  { label: "Overview", href: "/parent", icon: House },
-  { label: "Tasks", href: "/parent/tasks", icon: CheckSquare },
-  { label: "Review Queue", href: "/parent/review", icon: Eye },
-  { label: "Rewards", href: "/parent/rewards", icon: Gift },
-  { label: "Redemptions", href: "/parent/redemptions", icon: ShoppingCart },
+const parentNav: Array<{ label: string; windowId: WindowId; icon: React.ElementType }> = [
+  { label: "Overview", windowId: "overview", icon: House },
+  { label: "Children", windowId: "children", icon: Users },
+  { label: "Tasks", windowId: "tasks", icon: CheckSquare },
+  { label: "Review Queue", windowId: "review", icon: Eye },
+  { label: "Rewards", windowId: "rewards", icon: Gift },
+  { label: "Redemptions", windowId: "redemptions", icon: ShoppingCart },
 ]
 
 const childNav = [
@@ -54,7 +61,6 @@ const childNav = [
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading, logout } = useAuth()
   const router = useRouter()
-  const pathname = usePathname()
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -73,60 +79,121 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!user) return null
 
   const isParent = user.role === MemberRole.PARENT
-  const navItems = isParent ? parentNav : childNav
   const roleName = isParent ? "Parent" : "Child"
 
   return (
-    <SidebarProvider>
-      <Sidebar>
-        <SidebarHeader>
-          <div className="flex items-center gap-2 px-2 py-1">
-            <Carrot className="text-primary size-5" weight="fill" />
-            <span className="font-semibold">c4t</span>
-            <span className="text-muted-foreground ml-auto text-xs">{roleName}</span>
-          </div>
-        </SidebarHeader>
+    <WindowManagerProvider>
+      <DashboardChrome isParent={isParent} roleName={roleName} logout={logout}>
+        {children}
+      </DashboardChrome>
+    </WindowManagerProvider>
+  )
+}
 
-        <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {navItems.map(({ label, href, icon: Icon }) => (
-                  <SidebarMenuItem key={href}>
-                    <SidebarMenuButton asChild isActive={pathname === href || (href !== "/parent" && href !== "/child" && pathname.startsWith(href))}>
-                      <Link href={href}>
-                        <Icon />
-                        {label}
-                      </Link>
+function DashboardChrome({
+  isParent,
+  roleName,
+  logout,
+  children,
+}: {
+  isParent: boolean
+  roleName: string
+  logout: () => Promise<void>
+  children: React.ReactNode
+}) {
+  const pathname = usePathname()
+  const { user } = useAuth()
+  const { windows, openWindow, restoreWindow, focusWindow } = useWindowManager()
+  const displayName = user?.displayName ?? "Account"
+  const initials = displayName
+    .split(" ")
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase()
+
+  return (
+      <SidebarProvider className="h-svh min-h-0 w-full gap-3 p-3">
+        <Sidebar collapsible="none" className="w-(--sidebar-width) shrink-0 overflow-hidden rounded-xl border bg-sidebar shadow-sm">
+          <SidebarHeader>
+            <div className="flex items-center gap-2 px-2 py-1">
+              <Carrot className="text-primary size-5" weight="fill" />
+              <span className="font-semibold">c4t</span>
+              <span className="text-muted-foreground ml-auto text-xs">{roleName}</span>
+            </div>
+          </SidebarHeader>
+
+          <SidebarContent>
+            <SidebarGroup>
+              <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {isParent
+                    ? parentNav.map(({ label, windowId, icon: Icon }) => {
+                        const state = windows[windowId]
+                        return (
+                          <SidebarMenuItem key={windowId}>
+                            <SidebarMenuButton
+                              isActive={state.open && !state.minimized}
+                              onClick={() => {
+                                if (!state.open) openWindow(windowId)
+                                else if (state.minimized) restoreWindow(windowId)
+                                else focusWindow(windowId)
+                              }}
+                            >
+                              <Icon />
+                              {label}
+                              {state.minimized && <span className="ml-auto size-1.5 shrink-0 rounded-full bg-primary" />}
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        )
+                      })
+                    : childNav.map(({ label, href, icon: Icon }) => (
+                        <SidebarMenuItem key={href}>
+                          <SidebarMenuButton asChild isActive={pathname === href || (href !== "/child" && pathname.startsWith(href))}>
+                            <Link href={href}>
+                              <Icon />
+                              {label}
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </SidebarContent>
+
+          <SidebarFooter>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <SidebarMenuButton size="lg">
+                      <Avatar className="size-8">
+                        <AvatarFallback>{initials}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex min-w-0 flex-1 flex-col text-left leading-tight">
+                        <span className="truncate font-medium">{displayName}</span>
+                        {user?.email && <span className="text-muted-foreground truncate text-xs">{user.email}</span>}
+                      </div>
+                      <CaretUpDown className="text-muted-foreground ml-auto size-4 shrink-0" />
                     </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </SidebarContent>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="top" align="start" className="w-(--radix-dropdown-menu-trigger-width) min-w-56">
+                    <DropdownMenuItem onClick={logout}>
+                      <SignOut />
+                      Sign out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarFooter>
+        </Sidebar>
 
-        <SidebarFooter>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton onClick={logout} className="text-muted-foreground hover:text-foreground">
-                <SignOut />
-                Sign out
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarFooter>
-
-        <SidebarRail />
-      </Sidebar>
-
-      <SidebarInset>
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-        </header>
-        <main className="flex-1 p-6">{children}</main>
-      </SidebarInset>
-    </SidebarProvider>
+        <SidebarInset className="min-w-0 flex-1 overflow-hidden rounded-xl border shadow-sm">
+          <main className="flex-1 p-6">{children}</main>
+        </SidebarInset>
+      </SidebarProvider>
   )
 }

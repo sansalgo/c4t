@@ -6,6 +6,8 @@ import { type AuthUser } from "@/lib/auth"
 
 interface MeResponse {
   id: string
+  displayName: string
+  email?: string
   memberships: Array<{ familyId: string; role: string }>
 }
 
@@ -28,7 +30,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .then((me) => {
         const m = me.memberships[0]
         if (m) {
-          setUser({ userId: me.id, familyId: m.familyId, role: m.role as AuthUser['role'] })
+          setUser({ userId: me.id, familyId: m.familyId, role: m.role as AuthUser['role'], displayName: me.displayName, email: me.email })
         }
       })
       .catch(() => {
@@ -39,6 +41,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback((authUser: AuthUser) => {
     setUser(authUser)
+    // authUser from a fresh login/signup only has JWT claims (no displayName/email) — enrich it now.
+    api
+      .get<MeResponse>('/auth/me')
+      .then((me) => {
+        const m = me.memberships[0]
+        if (m) {
+          setUser({ userId: me.id, familyId: m.familyId, role: m.role as AuthUser['role'], displayName: me.displayName, email: me.email })
+        }
+      })
+      .catch(() => {})
   }, [])
 
   const logout = useCallback(async () => {

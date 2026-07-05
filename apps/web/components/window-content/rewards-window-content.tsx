@@ -11,7 +11,14 @@ import { Input } from "@workspace/ui/components/input"
 import { Textarea } from "@workspace/ui/components/textarea"
 import { Switch } from "@workspace/ui/components/switch"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@workspace/ui/components/card"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@workspace/ui/components/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@workspace/ui/components/dialog"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { Alert, AlertDescription } from "@workspace/ui/components/alert"
 import { Field, FieldGroup, FieldLabel } from "@workspace/ui/components/field"
@@ -22,7 +29,7 @@ interface Reward { id: string; title: string; description?: string; costCarrots:
 interface RewardForm { title: string; description: string; costCarrots: string }
 const emptyForm: RewardForm = { title: "", description: "", costCarrots: "10" }
 
-export default function ParentRewardsPage() {
+export function RewardsWindowContent() {
   const { user } = useAuth()
   const familyId = user?.familyId
   const [rewards, setRewards] = useState<Reward[]>([])
@@ -91,7 +98,7 @@ export default function ParentRewardsPage() {
     }
   }
 
-  if (loading) return <div className="flex flex-col gap-4"><Skeleton className="h-8 w-48" /><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[0,1,2].map((i) => <Skeleton key={i} className="h-40 rounded-xl" />)}</div></div>
+  if (loading) return <div className="flex flex-col gap-4"><div className="grid gap-4 sm:grid-cols-2">{[0,1,2].map((i) => <Skeleton key={i} className="h-40 rounded-xl" />)}</div></div>
   if (error) return <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>
 
   const active = rewards.filter((r) => r.isActive)
@@ -99,11 +106,7 @@ export default function ParentRewardsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Reward Catalog</h1>
-          <p className="text-muted-foreground text-sm">Create rewards children can redeem with their carrots.</p>
-        </div>
+      <div className="flex justify-end">
         <Button onClick={openCreate}>
           <PlusCircle data-icon="inline-start" />
           New reward
@@ -124,7 +127,7 @@ export default function ParentRewardsPage() {
       {active.length > 0 && (
         <div className="flex flex-col gap-3">
           <h2 className="font-semibold">Active</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             {active.map((reward) => <RewardCard key={reward.id} reward={reward} onEdit={openEdit} onToggle={toggleActive} />)}
           </div>
         </div>
@@ -133,7 +136,7 @@ export default function ParentRewardsPage() {
       {inactive.length > 0 && (
         <div className="flex flex-col gap-3">
           <h2 className="text-muted-foreground font-semibold">Inactive</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             {inactive.map((reward) => <RewardCard key={reward.id} reward={reward} onEdit={openEdit} onToggle={toggleActive} />)}
           </div>
         </div>

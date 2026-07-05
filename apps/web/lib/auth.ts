@@ -12,6 +12,8 @@ export interface AuthUser {
   userId: string
   familyId: string | null
   role: MemberRole | null
+  displayName?: string
+  email?: string
 }
 
 export function parseToken(token: string): AuthUser | null {

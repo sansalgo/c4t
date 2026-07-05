@@ -9,7 +9,14 @@ import { useAuth } from "@/components/auth-provider"
 import { Button } from "@workspace/ui/components/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@workspace/ui/components/card"
 import { Badge } from "@workspace/ui/components/badge"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@workspace/ui/components/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@workspace/ui/components/dialog"
 import { Textarea } from "@workspace/ui/components/textarea"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { Alert, AlertDescription } from "@workspace/ui/components/alert"
@@ -24,7 +31,7 @@ interface Task {
   attachments?: Attachment[]
 }
 
-export default function ReviewQueuePage() {
+export function ReviewWindowContent() {
   const { user } = useAuth()
   const familyId = user?.familyId
   const [tasks, setTasks] = useState<Task[]>([])
@@ -42,7 +49,6 @@ export default function ReviewQueuePage() {
       .then((all) => {
         const pending = all.filter((t: Task) => (t as any).status === "PENDING_REVIEW")
         setTasks(pending)
-        // Load attachments for each task
         pending.forEach((task) => {
           api
             .get<Attachment[]>(`/families/${familyId}/tasks/${task.id}/attachments`)
@@ -94,16 +100,11 @@ export default function ReviewQueuePage() {
     }
   }
 
-  if (loading) return <div className="flex flex-col gap-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-40 rounded-xl" /></div>
+  if (loading) return <div className="flex flex-col gap-4"><Skeleton className="h-40 rounded-xl" /></div>
   if (error) return <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold">Review Queue</h1>
-        <p className="text-muted-foreground text-sm">Tasks waiting for your approval.</p>
-      </div>
-
       {tasks.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
